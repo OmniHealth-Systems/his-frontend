@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createPaciente } from '@/infrastructure/Services/paciente.service.ts';
+import { createPaciente } from '@/infrastructure/Services/pacientes.service';
 import Alert from '@/presentation/common/Alert';
 import '@/presentation/styles/paciente/AñadirPacientes.css';
 

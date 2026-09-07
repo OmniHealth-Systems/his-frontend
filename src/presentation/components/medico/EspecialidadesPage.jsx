@@ -1,7 +1,7 @@
 // src/pages/EspecialidadesPage.jsx
 import React, { useState, useEffect } from 'react';
 import { 
- getEspecialidades, createEspecialidad, deleteEspecialidad } from '@/infrastructure/Services/especialidades.service';
+ getEspecialidades, createEspecialidad, deleteEspecialidad } from '@/infrastructure/Services/usuarios.service';
 import '@/presentation/styles/medico/Especialidades.css';
 
 const EspecialidadesPage = () => {

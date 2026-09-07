@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPacientes, deletePaciente as deletePacienteService } from '@/infrastructure/Services/paciente.service';
+import { getPacientes, deletePaciente as deletePacienteService } from '@/infrastructure/Services/pacientes.service';
 
 const usePacientes = () => {
   const [pacientes, setPacientes] = useState([]);

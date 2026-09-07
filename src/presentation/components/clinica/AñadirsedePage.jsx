@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaSearch, FaPlus, FaEdit, FaTrash, FaInfoCircle } from 'react-icons/fa';
+import { sedesService } from '@/infrastructure/Services/sedes.service';
 import '@/presentation/styles/clinica/añadirsede.css';
 
 const Añadirsede = () => {

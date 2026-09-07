@@ -2,11 +2,9 @@
 import { useState, useEffect } from 'react';
 import { 
   getMedicos, 
-  createMedico
-} from '@/infrastructure/Services/medico.service';
-import {  
+  createMedico,
   getEspecialidades 
-} from '@/infrastructure/Services/especialidades.service';
+} from '@/infrastructure/Services/usuarios.service';
 
 export const useMedicos = () => {
   const [medicos, setMedicos] = useState([]);

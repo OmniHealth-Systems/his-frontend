@@ -1,390 +1,444 @@
 import React, { useState, useEffect } from 'react';
-import { BsChevronLeft, BsChevronRight, BsPlusCircle } from 'react-icons/bs';
-import '@/presentation/styles/turno/turno.css';
+import { toast } from 'sonner';
+import {
+  Clock,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  PlusCircle,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Loader2,
+  RefreshCw,
+  Building,
+  UserCheck
+} from 'lucide-react';
+import { turnosService } from '@/infrastructure/Services/turnos.service';
 
-const TurnosPage = () => {
+export default function TurnoPage() {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
   const [turnos, setTurnos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
   const [formData, setFormData] = useState({
     fecha: formatDate(today),
-    lugar: '',
+    horaInicio: '08:00',
+    horaFin: '13:00',
+    lugar: 'Consultorio 101 - Sede Principal',
+    doctorId: 1,
+    doctorNombre: 'Dr. Alejandro Morales',
     estado: 'DISPONIBLE'
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
 
-  // Formatear fecha a YYYY-MM-DD
   function formatDate(date) {
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${y}-${m}-${day}`;
   }
 
-  // Cargar turnos al iniciar y al cambiar mes/año
+  const loadTurnos = async () => {
+    try {
+      setLoading(true);
+      const data = await turnosService.obtenerTurnosPorMes(month + 1, year);
+      setTurnos(data || []);
+    } catch (err) {
+      console.error('Error cargando turnos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchTurnos = async () => {
-      try {
-        setLoading(true);
-        const response = await turnosService.obtenerTurnosPorMes(month + 1, year);
-        setTurnos(response);
-      } catch (err) {
-        setError('Error al cargar turnos');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchTurnos();
+    loadTurnos();
   }, [month, year]);
 
-  // Función para obtener los días del mes
-  const getDaysInMonth = (month, year) => {
-    const date = new Date(year, month, 1);
+  const getDaysInMonth = (m, y) => {
+    const date = new Date(y, m, 1);
     const days = [];
-    while (date.getMonth() === month) {
+    while (date.getMonth() === m) {
       days.push(new Date(date));
       date.setDate(date.getDate() + 1);
     }
     return days;
   };
 
-  // Función para obtener el nombre del mes
-  const getMonthName = (month) => {
+  const getMonthName = (m) => {
     const months = [
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
-    return months[month];
+    return months[m];
   };
 
-  // Cambiar mes
   const handleMonthChange = (direction) => {
     if (direction === 'prev') {
-      setMonth((prevMonth) => (prevMonth === 0 ? 11 : prevMonth - 1));
-      if (month === 0) setYear((prevYear) => prevYear - 1);
-    } else if (direction === 'next') {
-      setMonth((prevMonth) => (prevMonth === 11 ? 0 : prevMonth + 1));
-      if (month === 11) setYear((prevYear) => prevYear + 1);
-    }
-  };
-
-  // Filtro por semana
-  const getWeeks = (days) => {
-    let weeks = [];
-    let week = [];
-    
-    // Agregar días vacíos al principio si es necesario
-    const firstDay = days[0].getDay();
-    for (let i = 0; i < firstDay; i++) {
-      week.push(null);
-    }
-    
-    days.forEach((day) => {
-      if (week.length === 7) {
-        weeks.push(week);
-        week = [];
+      if (month === 0) {
+        setMonth(11);
+        setYear(year - 1);
+      } else {
+        setMonth(month - 1);
       }
-      week.push(day);
-    });
-    
-    // Agregar días vacíos al final si es necesario
-    while (week.length < 7) {
-      week.push(null);
+    } else {
+      if (month === 11) {
+        setMonth(0);
+        setYear(year + 1);
+      } else {
+        setMonth(month + 1);
+      }
     }
-    
-    if (week.length) weeks.push(week);
-    return weeks;
   };
 
-  const daysInMonth = getDaysInMonth(month, year);
-  const weeks = getWeeks(daysInMonth);
-
-  // Obtener turnos para un día específico
   const getTurnosForDate = (date) => {
     if (!date) return [];
     const dateStr = formatDate(date);
-    return turnos.filter(turno => turno.fecha === dateStr);
+    return turnos.filter(t => t.fecha === dateStr || (t.fecha && t.fecha.startsWith(dateStr)));
   };
 
-  // Manejar cambios en el formulario
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Enviar formulario
-  const handleSubmit = async (e) => {
+  const handleCreateTurno = async (e) => {
     e.preventDefault();
-    setError('');
-    
     try {
       setLoading(true);
-      const nuevoTurno = await turnosService.crearTurno(formData);
-      setTurnos(prev => [...prev, nuevoTurno]);
-      setFormData({
-        fecha: formatDate(today),
-        lugar: '',
-        estado: 'DISPONIBLE'
+      await turnosService.crearTurno({
+        ...formData,
+        doctorId: Number(formData.doctorId),
       });
-      setShowForm(false);
-      alert('Turno creado exitosamente!');
+
+      toast.success('Turno Médico Registrado', {
+        description: `Turno para ${formData.fecha} guardado exitosamente.`,
+      });
+
+      setShowModal(false);
+      loadTurnos();
     } catch (err) {
-      setError(err.message || 'Error al crear el turno');
+      // Handled by Sonner in apiClient
     } finally {
       setLoading(false);
     }
   };
 
-  // Cambiar estado de un turno
-  const cambiarEstadoTurno = async (turnoId, nuevoEstado) => {
+  const handleCambiarEstado = async (turnoId, nuevoEstado) => {
     try {
-      setLoading(true);
       await turnosService.actualizarEstadoTurno(turnoId, nuevoEstado);
-      setTurnos(prev => 
-        prev.map(turno => 
-          turno.id === turnoId ? { ...turno, estado: nuevoEstado } : turno
-        )
-      );
+      toast.success(`Estado actualizado a: ${nuevoEstado}`);
+      setTurnos(prev => prev.map(t => t.id === turnoId ? { ...t, estado: nuevoEstado } : t));
     } catch (err) {
-      setError('Error al actualizar el estado del turno');
-    } finally {
-      setLoading(false);
+      toast.error('No se pudo actualizar el estado del turno.');
     }
   };
+
+  const daysInMonth = getDaysInMonth(month, year);
+  const startDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday
+
+  const turnosDelDia = getTurnosForDate(selectedDate);
 
   return (
-    <div className="turnos-container">
-      <div className="turnos-header">
-        <h1>Gestión de Turnos Médicos</h1>
-        <button 
-          className="btn-new" 
-          onClick={() => setShowForm(!showForm)}
-          disabled={loading}
-        >
-          <BsPlusCircle /> {showForm ? 'Cancelar' : 'Nuevo Turno'}
-        </button>
+    <div className="space-y-6">
+      {/* Header del Módulo */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 mb-2 border border-sky-200">
+            <Clock className="w-3.5 h-3.5 text-sky-600" /> Core Turnos & Guardias Médicas
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Gestión de Turnos Hospitalarios
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Programación de turnos médicos, guardias clínicas y cobertura por consultorio.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold transition-all shadow-sm shadow-sky-500/20"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Nuevo Turno</span>
+          </button>
+          <button
+            onClick={loadTurnos}
+            disabled={loading}
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shadow-xs"
+            title="Refrescar turnos"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
-      
-      {error && <div className="error-message">{error}</div>}
-      
-      {/* Formulario para crear turnos */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="turno-form">
-          <h2>Crear Nuevo Turno</h2>
-          
-          <div className="form-group">
-            <label>Fecha</label>
-            <input
-              type="date"
-              name="fecha"
-              value={formData.fecha}
-              onChange={handleChange}
-              required
-              disabled={loading}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>Lugar</label>
-            <input
-              type="text"
-              name="lugar"
-              value={formData.lugar}
-              onChange={handleChange}
-              placeholder="Ej: Consultorio 1, Sala de Operaciones"
-              required
-              disabled={loading}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>Estado Inicial</label>
-            <select
-              name="estado"
-              value={formData.estado}
-              onChange={handleChange}
-              required
-              disabled={loading}
-            >
-              <option value="DISPONIBLE">Disponible</option>
-              <option value="OCUPADO">Ocupado</option>
-              <option value="CANCELADO">Cancelado</option>
-            </select>
-          </div>
-          
-          <div className="form-actions">
-            <button 
-              type="button" 
-              className="btn-cancel"
-              onClick={() => setShowForm(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit" 
-              className="btn-submit"
-              disabled={loading}
-            >
-              {loading ? 'Creando...' : 'Crear Turno'}
-            </button>
-          </div>
-        </form>
-      )}
-      
-      {/* Calendario de turnos */}
-      <div className="calendar-container">
-        <div className="calendar-header">
-          <h2 className="calendar-title">
-            {getMonthName(month)} {year}
-          </h2>
-          <div className="calendar-controls">
-            <button
-              className="calendar-nav"
-              onClick={() => handleMonthChange('prev')}
-              disabled={loading}
-            >
-              <BsChevronLeft />
-            </button>
-            <button
-              className="calendar-nav"
-              onClick={() => handleMonthChange('next')}
-              disabled={loading}
-            >
-              <BsChevronRight />
-            </button>
-          </div>
-        </div>
 
-        {/* Encabezados de días de la semana */}
-        <div className="calendar-grid-header">
-          <div className="calendar-day-header">Dom</div>
-          <div className="calendar-day-header">Lun</div>
-          <div className="calendar-day-header">Mar</div>
-          <div className="calendar-day-header">Mié</div>
-          <div className="calendar-day-header">Jue</div>
-          <div className="calendar-day-header">Vie</div>
-          <div className="calendar-day-header">Sáb</div>
-        </div>
-
-        {/* Semanas del mes */}
-        <div className="calendar-weeks">
-          {weeks.map((week, index) => (
-            <div key={index} className="calendar-week">
-              {week.map((day, dayIndex) => {
-                const turnosDia = day ? getTurnosForDate(day) : [];
-                const isToday = day && day.toDateString() === today.toDateString();
-                
-                return (
-                  <div 
-                    key={dayIndex} 
-                    className={`calendar-day ${!day ? 'empty' : ''} ${isToday ? 'today' : ''}`}
-                    onClick={() => day && setSelectedDate(day)}
-                  >
-                    {day && (
-                      <>
-                        <div className="calendar-date">
-                          {day.getDate()}
-                          {isToday && <span className="today-badge">Hoy</span>}
-                        </div>
-                        
-                        {turnosDia.length > 0 && (
-                          <div className="turnos-indicators">
-                            {turnosDia.map(turno => (
-                              <div 
-                                key={turno.id} 
-                                className={`turno-indicator ${turno.estado.toLowerCase()}`}
-                                title={`${turno.lugar} - ${turno.estado}`}
-                              >
-                                {turno.lugar.substring(0, 1)}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+      {/* Grid: Calendario + Turnos del Día */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Calendario de Turnos */}
+        <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+          {/* Navegación de Mes */}
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-sky-600" />
+              <h2 className="text-lg font-bold text-slate-900">
+                {getMonthName(month)} {year}
+              </h2>
             </div>
-          ))}
-        </div>
-
-        {/* Controles de mes y año */}
-        <div className="calendar-filters">
-          <div className="filter-group">
-            <label>Mes:</label>
-            <select
-              value={month}
-              onChange={(e) => setMonth(parseInt(e.target.value))}
-              disabled={loading}
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i} value={i}>
-                  {getMonthName(i)}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleMonthChange('prev')}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleMonthChange('next')}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="filter-group">
-            <label>Año:</label>
-            <select
-              value={year}
-              onChange={(e) => setYear(parseInt(e.target.value))}
-              disabled={loading}
-            >
-              {Array.from({ length: 10 }, (_, i) => (
-                <option key={i} value={year - 5 + i}>
-                  {year - 5 + i}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-      
-      {/* Detalles de turnos para el día seleccionado */}
-      <div className="turnos-details">
-        <h2>Turnos para el {selectedDate.toLocaleDateString()}</h2>
-        
-        {loading ? (
-          <div className="loading">Cargando...</div>
-        ) : getTurnosForDate(selectedDate).length === 0 ? (
-          <div className="no-turnos">No hay turnos programados para este día</div>
-        ) : (
-          <div className="turnos-list">
-            {getTurnosForDate(selectedDate).map(turno => (
-              <div key={turno.id} className={`turno-card ${turno.estado.toLowerCase()}`}>
-                <div className="turno-info">
-                  <div className="turno-lugar">{turno.lugar}</div>
-                  <div className="turno-estado">{turno.estado}</div>
-                </div>
-                
-                <div className="turno-actions">
-                  <select
-                    value={turno.estado}
-                    onChange={(e) => cambiarEstadoTurno(turno.id, e.target.value)}
-                    disabled={loading}
-                  >
-                    <option value="DISPONIBLE">Disponible</option>
-                    <option value="OCUPADO">Ocupado</option>
-                    <option value="CANCELADO">Cancelado</option>
-                  </select>
-                </div>
+          {/* Días de la semana */}
+          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+            {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
+              <div key={d} className="py-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+                {d}
               </div>
             ))}
           </div>
-        )}
+
+          {/* Cuadrícula de días */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {/* Espacios vacíos al inicio */}
+            {Array.from({ length: startDayIndex }).map((_, i) => (
+              <div key={`empty-${i}`} className="h-20 rounded-xl bg-slate-50/40" />
+            ))}
+
+            {/* Días del mes */}
+            {daysInMonth.map(day => {
+              const turnosDia = getTurnosForDate(day);
+              const isSelected = formatDate(day) === formatDate(selectedDate);
+              const isToday = formatDate(day) === formatDate(today);
+
+              return (
+                <button
+                  key={day.toISOString()}
+                  onClick={() => setSelectedDate(day)}
+                  className={`h-20 p-2 rounded-xl text-left flex flex-col justify-between border transition-all ${
+                    isSelected
+                      ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20 shadow-xs'
+                      : 'border-slate-100 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-xs font-bold ${isToday ? 'bg-sky-600 text-white px-1.5 py-0.5 rounded-full' : 'text-slate-700'}`}>
+                      {day.getDate()}
+                    </span>
+                    {turnosDia.length > 0 && (
+                      <span className="text-[10px] font-bold px-1 rounded bg-slate-100 text-slate-600">
+                        {turnosDia.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="w-full space-y-0.5 overflow-hidden">
+                    {turnosDia.slice(0, 2).map((t, idx) => (
+                      <div
+                        key={idx}
+                        className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate ${
+                          t.estado === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-800' :
+                          t.estado === 'OCUPADO' ? 'bg-amber-100 text-amber-800' :
+                          'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {t.horaInicio ? `${t.horaInicio} ` : ''}{t.lugar || 'Consultorio'}
+                      </div>
+                    ))}
+                    {turnosDia.length > 2 && (
+                      <div className="text-[9px] text-slate-400 font-bold">
+                        +{turnosDia.length - 2} más
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detalle de Turnos del Día Seleccionado */}
+        <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
+          <div className="pb-4 mb-4 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900">
+              Turnos para el {selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+            </h2>
+            <span className="text-xs text-slate-500">
+              {turnosDelDia.length} turno(s) programado(s)
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-3 max-h-[500px]">
+            {turnosDelDia.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>No hay turnos programados para esta fecha.</p>
+                <button
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, fecha: formatDate(selectedDate) }));
+                    setShowModal(true);
+                  }}
+                  className="mt-3 text-sky-600 hover:text-sky-800 font-semibold text-xs"
+                >
+                  + Agregar Turno Aquí
+                </button>
+              </div>
+            ) : (
+              turnosDelDia.map(t => (
+                <div
+                  key={t.id}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <Building className="w-3.5 h-3.5 text-sky-600" />
+                      <span>{t.lugar || 'Consultorio General'}</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      t.estado === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-800' :
+                      t.estado === 'OCUPADO' ? 'bg-amber-100 text-amber-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {t.estado}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-600 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {t.horaInicio || '08:00'} - {t.horaFin || '13:00'}
+                    </span>
+                    <span className="font-semibold text-slate-700">
+                      {t.doctorNombre || `Médico #${t.doctorId || 1}`}
+                    </span>
+                  </div>
+
+                  {/* Selector rápido de estado */}
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500 font-medium">Cambiar Estado:</span>
+                    <select
+                      value={t.estado}
+                      onChange={(e) => handleCambiarEstado(t.id, e.target.value)}
+                      className="text-xs font-semibold p-1 rounded-lg border border-slate-200 bg-white"
+                    >
+                      <option value="DISPONIBLE">DISPONIBLE</option>
+                      <option value="OCUPADO">OCUPADO</option>
+                      <option value="CANCELADO">CANCELADO</option>
+                      <option value="EN_CURSO">EN_CURSO</option>
+                    </select>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Modal Crear Nuevo Turno */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Programar Turno Clínico</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTurno} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Fecha del Turno</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.fecha}
+                  onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hora Inicio</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.horaInicio}
+                    onChange={(e) => setFormData({ ...formData, horaInicio: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hora Fin</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.horaFin}
+                    onChange={(e) => setFormData({ ...formData, horaFin: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Lugar / Consultorio</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Consultorio 204 - Cardiología"
+                  value={formData.lugar}
+                  onChange={(e) => setFormData({ ...formData, lugar: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Médico Asignado</label>
+                <input
+                  type="text"
+                  placeholder="Nombre del médico"
+                  value={formData.doctorNombre}
+                  onChange={(e) => setFormData({ ...formData, doctorNombre: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-500/20 inline-flex items-center gap-1.5"
+                >
+                  {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Guardar Turno</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default TurnosPage;
+}

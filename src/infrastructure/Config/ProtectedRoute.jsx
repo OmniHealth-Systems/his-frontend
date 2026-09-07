@@ -1,41 +1,78 @@
-// infrastructure/ProtectedRoute.jsx
-import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { getKeycloakInstance } from './keycloak';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuth0 } from '@auth0/auth0-react';
+import Forbidden403 from '@/presentation/components/common/Forbidden403';
+import { Loader2 } from 'lucide-react';
 
-
-const ProtectedRoute = ({ element, requiredRole, ...rest }) => {
-  const [keycloak, setKeycloak] = useState(null);
-  const [authenticated, setAuthenticated] = useState(false);
-  const [hasRequiredRole, setHasRequiredRole] = useState(false);
+export const ProtectedRoute = ({ children, element, requiredRole }) => {
+  const { isAuthenticated, isLoading, user, loginWithRedirect } = useAuth0();
+  const location = useLocation();
 
   useEffect(() => {
-    const keycloakInstance = getKeycloakInstance();
-    keycloakInstance.init({ onLoad: 'login-required' }).then(authenticated => {
-      setKeycloak(keycloakInstance);
-      setAuthenticated(authenticated);
+    if (!isLoading && !isAuthenticated) {
+      loginWithRedirect({
+        appState: {
+          returnTo: location.pathname + location.search,
+        },
+      });
+    }
+  }, [isLoading, isAuthenticated, location, loginWithRedirect]);
 
-      if (authenticated && requiredRole) {
-        // Verifica si el usuario tiene el rol requerido
-        setHasRequiredRole(keycloakInstance.hasRealmRole(requiredRole));
-      }
-    });
-  }, [requiredRole]);
-
-  if (keycloak === null) {
-    return <div>Loading...</div>;  // Muestra algo mientras Keycloak se inicializa
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 p-6 bg-white rounded-xl shadow-sm border border-slate-200">
+          <Loader2 className="w-6 h-6 text-sky-600 animate-spin" />
+          <span className="text-sm font-medium text-slate-700">Verificando credenciales clínicas...</span>
+        </div>
+      </div>
+    );
   }
 
-  if (!authenticated) {
-    return <Navigate to="/login" />;  // Redirige si no está autenticado
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 p-6 bg-white rounded-xl shadow-sm border border-slate-200">
+          <Loader2 className="w-6 h-6 text-sky-600 animate-spin" />
+          <span className="text-sm font-medium text-slate-700">Redirigiendo a Auth0 Identity Platform...</span>
+        </div>
+      </div>
+    );
   }
 
-  if (requiredRole && !hasRequiredRole) {
-    return <Navigate to="/unauthorized" />;  // Redirige si no tiene el rol necesario
+  if (requiredRole) {
+    const rawRoles = user?.['https://omnihis.clinic/roles'] || user?.roles || [];
+    const userRoles = Array.isArray(rawRoles) ? rawRoles.map(r => r.toLowerCase()) : [String(rawRoles).toLowerCase()];
+    const req = requiredRole.toLowerCase();
+
+    // Superadmin posee acceso universal
+    const isSuperAdmin = userRoles.includes('superadmin');
+    const isAdmin = isSuperAdmin || userRoles.includes('admin');
+    const isDoctor = isAdmin || userRoles.includes('medico') || userRoles.includes('doctor');
+    const isNurse = isDoctor || userRoles.includes('enfermero') || userRoles.includes('enfermera');
+
+    let hasPermission = false;
+
+    if (req === 'superadmin') {
+      hasPermission = isSuperAdmin;
+    } else if (req === 'admin') {
+      hasPermission = isAdmin;
+    } else if (req === 'medico' || req === 'doctor') {
+      hasPermission = isDoctor;
+    } else if (req === 'enfermero') {
+      hasPermission = isNurse;
+    } else if (req === 'user') {
+      hasPermission = true;
+    } else {
+      hasPermission = userRoles.includes(req);
+    }
+
+    if (!hasPermission) {
+      return <Forbidden403 requiredRole={requiredRole} />;
+    }
   }
 
-  // Si el usuario está autenticado y tiene el rol requerido, permite el acceso a la ruta
-  return element;
+  return children || element;
 };
 
 export default ProtectedRoute;

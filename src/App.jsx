@@ -1,86 +1,135 @@
-import { Route, Routes } from 'react-router-dom';
-import './App.css';
-import { ReactKeycloakProvider } from '@react-keycloak/web';  // Correcto import de ReactKeycloakProvider
-import React, { useState, useEffect } from 'react';
-import { getKeycloakInstance } from './infrastructure/Config/keycloak';  // Importar la función para obtener la instancia de Keycloak
+import React from 'react';
+import { Route, Routes, Navigate } from 'react-router-dom';
+import { Auth0Provider } from '@auth0/auth0-react';
+import AppLayout from './presentation/layouts/AppLayout';
+import ProtectedRoute from './infrastructure/Config/ProtectedRoute';
+import Auth0TokenBridge from './infrastructure/Config/Auth0TokenBridge';
+
+// Pages
 import Login from './presentation/pages/LoginPage';
-import MedicosPage from './presentation/pages/MedicosPage';
-import AñadirMedicosPage from './presentation/components/medico/AñadirMedicosPage';
-import EspecialidadesPage from './presentation/components/medico/EspecialidadesPage';
+import CitasPage from './presentation/components/citas/CitasPage';
+import TurnoPage from './presentation/pages/TurnoPage';
+import ConsultasPage from './presentation/pages/ConsultasPage';
+import LaboratorioPage from './presentation/pages/LaboratorioPage';
 import PacientesPage from './presentation/pages/PacientesPage';
 import AñadirPacientesPage from './presentation/components/pacientes/AñadirPacientesPage';
-import SeguromedicoPage from './presentation/components/pacientes/seguromedicoPage';
-import InformesPage from './presentation/components/informes/InformesPage';
-import TurnoPage from './presentation/pages/TurnoPage';
-import CitasPage from './presentation/components/citas/CitasPage';
-import ClinicasPage from './presentation/components/clinica/clinicaPage';
-import AñadirsedePage from './presentation/components/clinica/AñadirsedePage';
-import CalendarPage from './presentation/components/turno/calendarPage';
+import FarmaciaPage from './presentation/pages/FarmaciaPage';
 import FacturacionPage from './presentation/pages/FacturacionPage';
-import Error404 from './presentation/pages/Error404Page';
-import Header from '@/presentation/shared/components/header';
-import ProtectedRoute from '@/infrastructure/Config/ProtectedRoute'; // Importar el componente ProtectedRoute
+import MedicosPage from './presentation/pages/MedicosPage';
+import EspecialidadesPage from './presentation/components/medico/EspecialidadesPage';
+import ClinicasPage from './presentation/components/clinica/clinicaPage';
+import InformesPage from './presentation/components/informes/InformesPage';
+import NotFoundPage from './presentation/pages/NotFoundPage';
+
+// Fase 3: Nuevas Páginas de Microservicios
+import HistorialPage from './presentation/pages/HistorialPage';
+import DocumentosPage from './presentation/pages/DocumentosPage';
+import POSFarmaciaPage from './presentation/pages/POSFarmaciaPage';
+import LogisticaPage from './presentation/pages/LogisticaPage';
+import SoportePage from './presentation/pages/SoportePage';
+import AuditoriaPage from './presentation/pages/AuditoriaPage';
+
+const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN || 'TU_DOMAIN_AQUI';
+const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID || 'TU_CLIENT_ID_AQUI';
 
 const App = () => {
-  const [keycloak, setKeycloak] = useState(null);  // Mantén la instancia de Keycloak en el estado
-
-  useEffect(() => {
-    const keycloakInstance = getKeycloakInstance();  // Solo obtener la instancia de Keycloak
-    keycloakInstance.init({ 
-      onLoad: 'login-required',  // Aseguramos que Keycloak requiera login si el usuario no está autenticado
-      checkLoginIframe: false  // Desactivamos el iframe que causa el tiempo de espera
-    }).then(authenticated => {
-      setKeycloak(keycloakInstance);  // Guardamos la instancia una vez inicializada
-    }).catch(error => {
-      console.error("Error initializing Keycloak:", error);
-    });
-  }, []);  // Se ejecuta solo una vez cuando el componente se monta
-
-  // Si Keycloak no está inicializado, muestra un mensaje de carga
-  if (!keycloak) {
-    return <div>Loading...</div>;
-  }
-
   return (
-    <ReactKeycloakProvider authClient={keycloak}>
-      <Header />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/home" element={<TurnoPage />} />
+    <Auth0Provider
+      domain={auth0Domain}
+      clientId={auth0ClientId}
+      authorizationParams={{
+        redirect_uri: window.location.origin,
+      }}
+    >
+      <Auth0TokenBridge>
+        <Routes>
+          {/* Ruta Pública: Login */}
+          <Route path="/login" element={<Login />} />
 
-        {/* Medicamentos Routes */}
-        <Route path="/medicos" element={<ProtectedRoute element={<MedicosPage />} requiredRole="admin" />} />
-        <Route path="/listademedicos" element={<MedicosPage />} />
-        <Route path="/anadirmedicos" element={<AñadirMedicosPage />} />
-        <Route path="/especialidades" element={<EspecialidadesPage />} />
+          {/* Rutas Protegidas bajo Layout Enterprise */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            {/* Redirección Raíz */}
+            <Route path="/" element={<Navigate to="/citas" replace />} />
+            <Route path="/home" element={<Navigate to="/citas" replace />} />
 
-        {/* Pacientes Routes */}
-        <Route path="/pacientes" element={<PacientesPage />} />
-        <Route path="/listadopacientes" element={<PacientesPage />} />
-        <Route path="/anadirpacientes" element={<AñadirPacientesPage />} />
-        <Route path="/seguromedico" element={<SeguromedicoPage />} />
+            {/* Core Clínico */}
+            <Route path="/citas" element={<CitasPage />} />
+            <Route path="/turno" element={<TurnoPage />} />
+            <Route path="/consultas" element={<ConsultasPage />} />
+            <Route path="/laboratorio" element={<LaboratorioPage />} />
+            <Route path="/historial-clinico" element={<HistorialPage />} />
+            <Route path="/historial" element={<Navigate to="/historial-clinico" replace />} />
+            <Route path="/documentos" element={<DocumentosPage />} />
 
-        {/* Turnos */}
-        <Route path="/turno" element={<TurnoPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
+            {/* Gestión de Pacientes */}
+            <Route path="/pacientes" element={<PacientesPage />} />
+            <Route path="/listadopacientes" element={<Navigate to="/pacientes" replace />} />
+            <Route path="/anadirpacientes" element={<AñadirPacientesPage />} />
 
-        {/* Citas */}
-        <Route path="/citas" element={<CitasPage />} />
+            {/* Farmacia, POS & Suministros */}
+            <Route path="/farmacia" element={<FarmaciaPage />} />
+            <Route path="/farmacia/pos" element={<POSFarmaciaPage />} />
+            <Route path="/pos" element={<Navigate to="/farmacia/pos" replace />} />
+            <Route path="/logistica" element={<LogisticaPage />} />
+            <Route path="/insumos" element={<Navigate to="/logistica" replace />} />
 
-        {/* Facturación */}
-        <Route path="/facturacion" element={<FacturacionPage />} />
+            {/* Mesa de Ayuda & Soporte TI */}
+            <Route path="/soporte" element={<SoportePage />} />
+            <Route path="/helpdesk" element={<Navigate to="/soporte" replace />} />
 
-        {/* Rutas de Clínica (Solo accesibles para superadmin) */}
-        <Route path="/clinica" element={<ProtectedRoute element={<ClinicasPage />} requiredRole="superadmin" />} />
-        <Route path="/añadirsede" element={<ProtectedRoute element={<AñadirsedePage />} requiredRole="superadmin" />} />
+            {/* Finanzas & Facturación */}
+            <Route path="/facturacion" element={<FacturacionPage />} />
 
-        {/* Informes */}
-        <Route path="/informes" element={<InformesPage />} />
+            {/* Informes Médicos */}
+            <Route path="/informes" element={<InformesPage />} />
 
-        {/* Error 404 */}
-        <Route path="*" element={<Error404 />} />
-      </Routes>
-    </ReactKeycloakProvider>
+            {/* Directorio Médico y Especialidades (Requiere Rol Admin / Superadmin) */}
+            <Route
+              path="/medicos"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <MedicosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/listademedicos" element={<Navigate to="/medicos" replace />} />
+            <Route path="/especialidades" element={<EspecialidadesPage />} />
+
+            {/* Sedes Clínicas (Solo Superadmin) */}
+            <Route
+              path="/clinica"
+              element={
+                <ProtectedRoute requiredRole="superadmin">
+                  <ClinicasPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/sedes" element={<Navigate to="/clinica" replace />} />
+            <Route path="/añadirsede" element={<Navigate to="/clinica" replace />} />
+
+            {/* Auditoría & Seguridad Criptográfica (Solo Superadmin) */}
+            <Route
+              path="/auditoria"
+              element={
+                <ProtectedRoute requiredRole="superadmin">
+                  <AuditoriaPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/logs" element={<Navigate to="/auditoria" replace />} />
+          </Route>
+
+          {/* Error 404 Global */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Auth0TokenBridge>
+    </Auth0Provider>
   );
 };
 

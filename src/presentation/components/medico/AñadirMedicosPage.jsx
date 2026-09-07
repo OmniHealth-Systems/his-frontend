@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createMedico } from  '@/infrastructure/Services/medico.service';
+import { createMedico } from '@/infrastructure/Services/usuarios.service';
 const AñadirMedicosPage = () => {
   const [medico, setMedico] = useState({
     nombreCompleto: '',

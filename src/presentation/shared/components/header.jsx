@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { useKeycloak } from '@react-keycloak/web';  // Usamos keycloak para obtener roles
+import { useAuth0 } from '@auth0/auth0-react';
 import LOGO from '@/assets/image/logo.webp';
 import '@/presentation/styles/common/header.css';
 import { Link } from 'react-router-dom';
 
 export default function Header() {
-  const { keycloak, initialized } = useKeycloak();  // Obtener la instancia de Keycloak
+  const { isAuthenticated, user, loginWithRedirect, logout } = useAuth0();
   const [roles, setRoles] = useState({ isSuperAdmin: false, isUser: false });
 
   useEffect(() => {
-    if (initialized && keycloak) {
-      const isSuperAdmin = keycloak.hasRealmRole('superadmin');  // Verificar si es superadmin
-      const isUser = keycloak.hasRealmRole('user');  // Verificar si es un usuario
+    if (isAuthenticated && user) {
+      const userRoles = user['https://omnihis.clinic/roles'] || user.roles || [];
+      const isSuperAdmin = Array.isArray(userRoles) ? userRoles.includes('superadmin') : userRoles === 'superadmin';
+      const isUser = Array.isArray(userRoles) ? userRoles.includes('user') : true;
       setRoles({ isSuperAdmin, isUser });
     }
-  }, [initialized, keycloak]);  // Solo ejecutar cuando Keycloak esté inicializado
+  }, [isAuthenticated, user]);
 
   // Lista de enlaces que se mostrarán según el rol
   const List = [
@@ -46,6 +47,21 @@ export default function Header() {
       link: '/citas',
     },
     {
+      id: 8,
+      name: 'Consultas',
+      link: '/consultas',
+    },
+    {
+      id: 9,
+      name: 'Laboratorio',
+      link: '/laboratorio',
+    },
+    {
+      id: 10,
+      name: 'Farmacia',
+      link: '/farmacia',
+    },
+    {
       id: 5,
       name: 'Facturación',
       link: '/facturacion',
@@ -61,12 +77,10 @@ export default function Header() {
       name: 'Informes',
       link: '/informes',
     }
-  ].filter(Boolean);  // Filtra los elementos que sean falsos (en este caso la ruta de Clínica si no es superadmin)
+  ].filter(Boolean);
 
   const handleLogout = () => {
-    if (keycloak) {
-      keycloak.logout(); // Método para cerrar sesión de Keycloak
-    }
+    logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
   return (
@@ -99,10 +113,10 @@ export default function Header() {
         </div>
       </div>
       <div className="header__button">
-        {keycloak?.authenticated ? (
-          <button onClick={handleLogout}>Cerrar sesión</button> // Botón de logout
+        {isAuthenticated ? (
+          <button onClick={handleLogout}>Cerrar sesión</button>
         ) : (
-          <Link to="/login">Iniciar sesión</Link>
+          <button onClick={() => loginWithRedirect()}>Iniciar sesión</button>
         )}
       </div>
     </div>
